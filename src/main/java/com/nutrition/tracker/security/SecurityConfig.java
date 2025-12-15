@@ -59,6 +59,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/image/**").permitAll()
                         .requestMatchers("/api/barcode/**").permitAll()
+                        .requestMatchers("/api/foods/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
