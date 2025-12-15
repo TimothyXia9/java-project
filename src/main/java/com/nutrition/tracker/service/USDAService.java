@@ -77,25 +77,43 @@ public class USDAService {
         food.setBrand(foodNode.path("brandOwner").asText(null));
         food.setSource(Food.FoodSource.USDA);
 
+        // Get original serving size to calculate scaling factor
+        double originalServingSize = foodNode.path("servingSize").asDouble(100.0);
+        String originalServingUnit = foodNode.path("servingSizeUnit").asText("g");
+
+        // Calculate scaling factor to normalize to 100g
+        double scalingFactor = 1.0;
+        if ("g".equalsIgnoreCase(originalServingUnit)) {
+            scalingFactor = 100.0 / originalServingSize;
+        } else if ("mg".equalsIgnoreCase(originalServingUnit)) {
+            scalingFactor = 100000.0 / originalServingSize; // 100g = 100000mg
+        }
+        // For other units (oz, lb, etc.), keep as is for now
+
         JsonNode nutrients = foodNode.path("foodNutrients");
         for (JsonNode nutrient : nutrients) {
             String nutrientName = nutrient.path("nutrientName").asText();
             double value = nutrient.path("value").asDouble(0.0);
 
+            // Scale all nutrient values to per 100g
+            double scaledValue = value * scalingFactor;
+
             switch (nutrientName) {
-                case "Energy" -> food.setCalories(value);
-                case "Protein" -> food.setProtein(value);
-                case "Carbohydrate, by difference" -> food.setCarbohydrates(value);
-                case "Total lipid (fat)" -> food.setFat(value);
-                case "Fiber, total dietary" -> food.setFiber(value);
-                case "Sugars, total including NLEA" -> food.setSugar(value);
-                case "Sodium, Na" -> food.setSodium(value);
-                case "Cholesterol" -> food.setCholesterol(value);
+                case "Energy" -> food.setCalories(scaledValue);
+                case "Protein" -> food.setProtein(scaledValue);
+                case "Carbohydrate, by difference" -> food.setCarbohydrates(scaledValue);
+                case "Total lipid (fat)" -> food.setFat(scaledValue);
+                case "Fiber, total dietary" -> food.setFiber(scaledValue);
+                case "Sugars, total including NLEA" -> food.setSugar(scaledValue);
+                case "Total Sugars" -> { if (food.getSugar() == null || food.getSugar() == 0.0) food.setSugar(scaledValue); }
+                case "Sodium, Na" -> food.setSodium(scaledValue);
+                case "Cholesterol" -> food.setCholesterol(scaledValue);
             }
         }
 
-        food.setServingSize(foodNode.path("servingSize").asDouble(100.0));
-        food.setServingUnit(foodNode.path("servingSizeUnit").asText("g"));
+        // Always set serving size to 100g
+        food.setServingSize(100.0);
+        food.setServingUnit("g");
 
         return food;
     }
