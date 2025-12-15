@@ -54,14 +54,18 @@ public class MealService {
         return mealRepository.save(meal);
     }
 
+    @Transactional(readOnly = true)
     public List<Meal> getMealsByDate(LocalDate date) {
         User user = userService.getCurrentUser();
-        return mealRepository.findByUserAndMealDate(user, date);
+        // Use JOIN FETCH query to eagerly load mealFoods and food
+        return mealRepository.findByUserAndMealDateWithFoods(user, date);
     }
 
+    @Transactional(readOnly = true)
     public List<Meal> getMealsByDateRange(LocalDate startDate, LocalDate endDate) {
         User user = userService.getCurrentUser();
-        return mealRepository.findByUserAndMealDateBetween(user, startDate, endDate);
+        // Use JOIN FETCH query to eagerly load mealFoods and food
+        return mealRepository.findByUserAndMealDateBetweenWithFoods(user, startDate, endDate);
     }
 
     public Meal getMealById(Long id) {
