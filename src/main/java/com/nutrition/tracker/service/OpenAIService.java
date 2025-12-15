@@ -44,7 +44,7 @@ public class OpenAIService {
             Map<String, Object> message = new HashMap<>();
             message.put("role", "user");
             message.put("content", List.of(
-                    Map.of("type", "text", "text", "Analyze this food image and identify the food items with estimated portions. Return in JSON format with fields: foodName, estimatedPortion, portionUnit."),
+                    Map.of("type", "text", "text", "Analyze this food image and identify all the food items visible. For EACH food item, estimate the realistic weight in grams based on typical serving sizes. For example: a plate of rice is typically 150-200g, a piece of fried chicken is 100-150g, a fish fillet is 150-200g, vegetables are typically 50-100g per serving. Use clear food names, try to identify specific meat cuts or vegetable types when possible. Return ONLY a valid JSON array with this exact format: [{\"foodName\": \"Rice\", \"estimatedPortion\": 180, \"portionUnit\": \"g\"}, {\"foodName\": \"Fried Chicken\", \"estimatedPortion\": 120, \"portionUnit\": \"g\"}]. Do not include any markdown formatting or code blocks, just the raw JSON array."),
                     Map.of("type", "image_url", "image_url", Map.of("url", "data:image/jpeg;base64," + base64Image))
             ));
 
@@ -60,7 +60,19 @@ public class OpenAIService {
             JsonNode root = objectMapper.readTree(response.getBody());
             String content = root.path("choices").get(0).path("message").path("content").asText();
 
-            return CompletableFuture.completedFuture(content);
+            // Remove markdown code block formatting if present
+            String cleanedContent = content.trim();
+            if (cleanedContent.startsWith("```json")) {
+                cleanedContent = cleanedContent.substring(7); // Remove ```json
+            } else if (cleanedContent.startsWith("```")) {
+                cleanedContent = cleanedContent.substring(3); // Remove ```
+            }
+            if (cleanedContent.endsWith("```")) {
+                cleanedContent = cleanedContent.substring(0, cleanedContent.length() - 3); // Remove trailing ```
+            }
+            cleanedContent = cleanedContent.trim();
+
+            return CompletableFuture.completedFuture(cleanedContent);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
