@@ -1,57 +1,57 @@
 spring:
-  application:
-    name: nutrition-tracker
+    application:
+        name: nutrition-tracker
 
-  datasource:
-    url: jdbc:mysql://localhost:3306/nutrition_tracker?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
-    username: ${DB_USERNAME:appuser}
-    password: ${DB_PASSWORD:123456}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    datasource:
+        url: jdbc:mysql://localhost:3306/nutrition_tracker?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+        username: ${DB_USERNAME:appuser}
+        password: ${DB_PASSWORD:123456}
+        driver-class-name: com.mysql.cj.jdbc.Driver
 
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
+    jpa:
+        hibernate:
+            ddl-auto: update
+        show-sql: true
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.MySQLDialect
+                format_sql: true
 
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB
+    servlet:
+        multipart:
+            enabled: true
+            max-file-size: 10MB
+            max-request-size: 10MB
 
-  task:
-    execution:
-      pool:
-        core-size: 5
-        max-size: 10
-        queue-capacity: 100
+    task:
+        execution:
+            pool:
+                core-size: 5
+                max-size: 10
+                queue-capacity: 100
 
 server:
-  port: 8080
+    port: 8080
 
 # External API Configuration
 api:
-  openai:
-    key: ${OPENAI_API_KEY:your-openai-api-key}
-    url: https://api.openai.com/v1/chat/completions
-    model: gpt-4o
+    openai:
+        key: ${OPENAI_API_KEY:your-openai-api-key}
+        url: https://api.openai.com/v1/chat/completions
+        model: gpt-4o
 
-  usda:
-    key: ${USDA_API_KEY:your-usda-api-key}
-    url: https://api.nal.usda.gov/fdc/v1
+    usda:
+        key: ${USDA_API_KEY:your-usda-api-key}
+        url: https://api.nal.usda.gov/fdc/v1
 
-  openfoodfacts:
-    url: https://world.openfoodfacts.org/api/v0
+    openfoodfacts:
+        url: https://world.openfoodfacts.org/api/v0
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-change-this-in-production-minimum-256-bits}
-  expiration: 86400000
+    secret: ${JWT_SECRET:your-jwt-secret-minimum-256-bits}
+    expiration: 86400000
 
 # File Upload Configuration
 upload:
-  dir: ${UPLOAD_DIR:./uploads}
+    dir: ${UPLOAD_DIR:./uploads}

@@ -1,0 +1,17 @@
+# Local environment configuration example
+# Copy this file to application-local.yml and fill in your actual API keys
+
+api:
+  openai:
+    key: your-openai-api-key-here
+  usda:
+    key: your-usda-api-key-here
+
+jwt:
+  secret: your-jwt-secret-minimum-256-bits
+
+# Optional database credentials if different from defaults
+# spring:
+#   datasource:
+#     username: your-db-username
+#     password: your-db-password
