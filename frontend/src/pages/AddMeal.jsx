@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mealService, foodService, imageService, barcodeService } from '../services/api';
 
@@ -13,10 +13,21 @@ function AddMeal() {
   const [searchResults, setSearchResults] = useState([]);
   const [barcode, setBarcode] = useState('');
   const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [recognizedFoods, setRecognizedFoods] = useState([]);
+  const [currentRecognizedFood, setCurrentRecognizedFood] = useState(null);
   const [message, setMessage] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const navigate = useNavigate();
+
+  // Cleanup preview URL on component unmount
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const handleMealChange = (e) => {
     setMealData({
@@ -27,6 +38,7 @@ function AddMeal() {
 
   const searchFoods = async () => {
     if (!searchQuery) return;
+    setCurrentRecognizedFood(null); // Clear recognized food when doing manual search
     try {
       const response = await foodService.searchFoods(searchQuery);
       setSearchResults(response.data);
@@ -35,19 +47,21 @@ function AddMeal() {
     }
   };
 
-  const searchRecognizedFood = async (foodName) => {
-    setSearchQuery(foodName);
+  const searchRecognizedFood = async (recognizedFood) => {
+    setSearchQuery(recognizedFood.foodName);
+    setCurrentRecognizedFood(recognizedFood); // Save the recognized food with its weight
     try {
-      const response = await foodService.searchFoods(foodName);
+      const response = await foodService.searchFoods(recognizedFood.foodName);
       setSearchResults(response.data);
-      setMessage(`Found ${response.data.length} results for "${foodName}"`);
+      setMessage(`Found ${response.data.length} results for "${recognizedFood.foodName}" (${recognizedFood.estimatedPortion}g from image)`);
     } catch (error) {
-      setMessage(`Failed to search for "${foodName}"`);
+      setMessage(`Failed to search for "${recognizedFood.foodName}"`);
     }
   };
 
   const scanBarcode = async () => {
     if (!barcode) return;
+    setCurrentRecognizedFood(null); // Clear recognized food when scanning barcode
     try {
       const response = await barcodeService.getFoodByBarcode(barcode);
       if (response.data) {
@@ -60,25 +74,43 @@ function AddMeal() {
     }
   };
 
+  const handleImageFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+      // Clear previous results
+      setRecognizedFoods([]);
+      setMessage('');
+    }
+  };
+
   const handleImageUpload = async () => {
     if (!imageFile) return;
     setIsAnalyzing(true);
     setMessage('');
     try {
       const response = await imageService.analyzeImage(imageFile);
-      // Parse JSON response
-      try {
-        const parsedFoods = JSON.parse(response.data);
-        setRecognizedFoods(parsedFoods);
-        setMessage(`Successfully recognized ${parsedFoods.length} food items!`);
-      } catch (parseError) {
-        // If not JSON, show raw text
-        setMessage('Image analyzed, but response format is unexpected.');
-        console.log('Response:', response.data);
+      // Check if response.data is already an object (axios auto-parses JSON)
+      let parsedFoods;
+      if (typeof response.data === 'string') {
+        // If it's a string, parse it
+        parsedFoods = JSON.parse(response.data);
+      } else if (Array.isArray(response.data)) {
+        // If it's already an array, use it directly
+        parsedFoods = response.data;
+      } else {
+        throw new Error('Unexpected response format');
       }
+
+      setRecognizedFoods(parsedFoods);
+      setMessage(`Successfully recognized ${parsedFoods.length} food items!`);
     } catch (error) {
       const errorMsg = error.response?.data || error.message;
       setMessage(typeof errorMsg === 'string' ? errorMsg : 'Failed to analyze image');
+      console.error('Image analysis error:', error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -91,17 +123,30 @@ function AddMeal() {
       return;
     }
 
+    // Calculate servings based on recognized weight (if available)
+    // All foods are normalized to 100g, so if recognized portion is 150g, servings = 1.5
+    let servings = 1;
+    let weightInfo = '';
+
+    if (currentRecognizedFood && currentRecognizedFood.estimatedPortion) {
+      servings = currentRecognizedFood.estimatedPortion / 100;
+      weightInfo = ` (${currentRecognizedFood.estimatedPortion}g from image)`;
+    }
+
     setMealData({
       ...mealData,
       foods: [...mealData.foods, {
         foodId: food.id,
         foodName: food.name,
-        quantity: 1,
-        quantityUnit: 'serving',
-        servings: 1
+        quantity: currentRecognizedFood ? currentRecognizedFood.estimatedPortion : 100,
+        quantityUnit: 'g',
+        servings: servings
       }]
     });
-    setMessage('Food added to meal');
+    setMessage(`Food added to meal${weightInfo}`);
+
+    // Clear current recognized food after adding
+    setCurrentRecognizedFood(null);
   };
 
   const updateFoodQuantity = (index, field, value) => {
@@ -177,16 +222,44 @@ function AddMeal() {
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => setImageFile(e.target.files[0])}
-            style={{ marginTop: '8px' }}
+            onChange={handleImageFileChange}
+            style={{ marginTop: '8px', display: 'block' }}
           />
+
+          {/* Image Preview */}
+          {imagePreview && (
+            <div style={{
+              marginTop: '15px',
+              textAlign: 'center',
+              border: '2px solid #FF9800',
+              borderRadius: '8px',
+              padding: '10px',
+              backgroundColor: 'white'
+            }}>
+              <img
+                src={imagePreview}
+                alt="Food preview"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '400px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                }}
+              />
+            </div>
+          )}
+
           <button
             onClick={handleImageUpload}
             disabled={!imageFile || isAnalyzing}
             style={{
               backgroundColor: isAnalyzing ? '#ccc' : '#FF9800',
               marginTop: '10px',
-              cursor: isAnalyzing ? 'not-allowed' : 'pointer'
+              cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              fontWeight: 'bold'
             }}
           >
             {isAnalyzing ? 'Analyzing...' : 'Analyze Image with AI'}
@@ -222,13 +295,13 @@ function AddMeal() {
                           fontSize: '13px',
                           fontWeight: 'bold'
                         }}>
-                          {food.estimatedPortion} {food.portionUnit}
+                          {food.estimatedPortion}g
                         </span>
-                        <span>estimated portion</span>
+                        <span>estimated weight</span>
                       </div>
                     </div>
                     <button
-                      onClick={() => searchRecognizedFood(food.foodName)}
+                      onClick={() => searchRecognizedFood(food)}
                       style={{
                         backgroundColor: '#4CAF50',
                         padding: '8px 16px',
@@ -273,23 +346,196 @@ function AddMeal() {
 
         {searchResults.length > 0 && (
           <div>
-            <h4>Search Results:</h4>
+            <h4 style={{ marginBottom: '15px', color: '#333' }}>
+              Search Results ({searchResults.length} items)
+            </h4>
             {searchResults.map(food => (
               <div key={food.id} style={{
-                padding: '12px',
-                border: '1px solid #ddd',
-                marginBottom: '10px',
-                borderRadius: '4px',
-                backgroundColor: '#fafafa'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <strong style={{ fontSize: '16px' }}>{food.name}</strong>
-                    <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
-                      {food.calories} kcal per {food.servingSize}{food.servingUnit}
+                padding: '16px',
+                border: '1px solid #e0e0e0',
+                marginBottom: '12px',
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                transition: 'box-shadow 0.2s',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.08)'}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    {/* Food Name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '18px', color: '#2c3e50' }}>{food.name}</strong>
+                      {food.brand && (
+                        <span style={{
+                          fontSize: '12px',
+                          backgroundColor: '#3498db',
+                          color: 'white',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {food.brand}
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '11px',
+                        backgroundColor: '#95a5a6',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        {food.source}
+                      </span>
+                    </div>
+
+                    {/* Serving Size */}
+                    <div style={{
+                      fontSize: '14px',
+                      color: '#7f8c8d',
+                      marginBottom: '12px',
+                      fontWeight: '500'
+                    }}>
+                      Nutrition per 100g
+                    </div>
+
+                    {/* Nutrition Info Grid */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                      gap: '8px',
+                      marginTop: '8px'
+                    }}>
+                      <div style={{
+                        backgroundColor: '#fff3cd',
+                        padding: '8px',
+                        borderRadius: '6px',
+                        textAlign: 'center',
+                        border: '1px solid #ffc107'
+                      }}>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ff6b6b' }}>
+                          {Math.round(food.calories)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                          Calories
+                        </div>
+                      </div>
+
+                      {food.protein > 0 && (
+                        <div style={{
+                          backgroundColor: '#d4edda',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          border: '1px solid #28a745'
+                        }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
+                            {food.protein.toFixed(1)}g
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            Protein
+                          </div>
+                        </div>
+                      )}
+
+                      {food.carbohydrates > 0 && (
+                        <div style={{
+                          backgroundColor: '#cfe2ff',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          border: '1px solid #0d6efd'
+                        }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#0d6efd' }}>
+                            {food.carbohydrates.toFixed(1)}g
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            Carbs
+                          </div>
+                        </div>
+                      )}
+
+                      {food.fat > 0 && (
+                        <div style={{
+                          backgroundColor: '#fff3e0',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          border: '1px solid #ff9800'
+                        }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ff9800' }}>
+                            {food.fat.toFixed(1)}g
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            Fat
+                          </div>
+                        </div>
+                      )}
+
+                      {food.fiber > 0 && (
+                        <div style={{
+                          backgroundColor: '#f8d7da',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          border: '1px solid #dc3545'
+                        }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc3545' }}>
+                            {food.fiber.toFixed(1)}g
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            Fiber
+                          </div>
+                        </div>
+                      )}
+
+                      {food.sodium > 0 && (
+                        <div style={{
+                          backgroundColor: '#e7e7e7',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          textAlign: 'center',
+                          border: '1px solid #6c757d'
+                        }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#6c757d' }}>
+                            {Math.round(food.sodium)}mg
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>
+                            Sodium
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button onClick={() => addFoodToMeal(food)} style={{ backgroundColor: '#4CAF50' }}>
+
+                  {/* Add Button */}
+                  <button
+                    onClick={() => addFoodToMeal(food)}
+                    style={{
+                      backgroundColor: '#4CAF50',
+                      padding: '10px 20px',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap',
+                      marginLeft: '16px',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#45a049';
+                      e.currentTarget.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#4CAF50';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                  >
                     Add to Meal
                   </button>
                 </div>
@@ -322,13 +568,17 @@ function AddMeal() {
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center' }}>
                 <input
                   type="number"
-                  step="0.1"
-                  value={food.servings}
-                  onChange={(e) => updateFoodQuantity(index, 'servings', e.target.value)}
-                  placeholder="Servings"
-                  style={{ width: '100px' }}
+                  step="1"
+                  value={food.quantity}
+                  onChange={(e) => {
+                    const newQuantity = parseFloat(e.target.value) || 0;
+                    updateFoodQuantity(index, 'quantity', newQuantity);
+                    updateFoodQuantity(index, 'servings', newQuantity / 100);
+                  }}
+                  placeholder="Weight in grams"
+                  style={{ width: '120px' }}
                 />
-                <span>servings</span>
+                <span>grams (= {food.servings.toFixed(2)} servings)</span>
               </div>
             </div>
           ))
