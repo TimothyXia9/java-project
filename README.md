@@ -137,7 +137,57 @@ Before you begin, ensure you have the following installed:
 
 ## Starting the Application
 
-for backend start with `bash ./start-backend.sh` and for frontend start with `cd frontend && bash ./start-frontend.sh`.
+To install dependencies and start the application, run the following commands
+
+### Install Backend Dependencies
+
+```bash
+./mvnw clean install
+```
+
+Or with Maven installed globally:
+
+```bash
+mvn clean install
+```
+
+### Install Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### MySQL Database Setup
+
+1. Start MySQL server
+
+```bash
+  mysql -u root -p
+```
+
+2. Create a database named `nutrition_tracker`
+
+```sql
+CREATE DATABASE nutrition_tracker CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+### Environment Variables
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Update:
+```
+DB_USERNAME=root
+DB_PASSWORD=your_mysql_password
+```
+### Start the Application
+
+For backend start with `bash ./start-backend.sh` and for frontend start with `cd frontend && bash ./start-frontend.sh`.
 
 Openai API key and USDA API key of my own is already set in the application-local.yml file, please do not abuse using it and do not share it publicly.
 
