@@ -181,15 +181,17 @@ nano .env
 ```
 
 Update:
+
 ```
 DB_USERNAME=root
 DB_PASSWORD=your_mysql_password
 ```
+
 ### Start the Application
 
 For backend start with `bash ./start-backend.sh` and for frontend start with `cd frontend && bash ./start-frontend.sh`.
 
-Openai API key and USDA API key of my own is already set in the application-local.yml file, please do not abuse using it and do not share it publicly.
+Openai API key and USDA API key of my own is already set in the `application-local.yml` file, please do not abuse using it and do not share it publicly.
 
 ## API Documentation
 
